@@ -80,18 +80,40 @@ const LoginView = () => {
   const [configStatus, setConfigStatus] = useState<any>(null);
   const [isResetting, setIsResetting] = useState(false);
 
+  const fetchWithTimeout = async (url: string, options: any = {}, timeout = 10000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (error) {
+      clearTimeout(id);
+      throw error;
+    }
+  };
+
   useEffect(() => {
-    fetch('/api/config-check')
-      .then(res => res.json())
+    fetchWithTimeout('/api/config-check')
+      .then(res => {
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+        return res.json();
+      })
       .then(data => setConfigStatus(data))
-      .catch(err => console.error("Erro ao checar config:", err));
+      .catch(err => {
+        console.error("Erro ao checar config:", err);
+        // Silently fail here to not annoy user if it's just a slow start
+      });
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetchWithTimeout(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData)
