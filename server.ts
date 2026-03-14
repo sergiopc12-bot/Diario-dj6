@@ -19,55 +19,55 @@ const supabase = createClient(
   supabaseKey || "placeholder"
 );
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+app.use(express.json());
 
-  app.use(express.json());
+app.get("/api/ping", (req, res) => {
+  res.json({ message: "pong" });
+});
 
-  app.get("/api/ping", (req, res) => {
-    res.json({ message: "pong" });
-  });
+// Global error handler for debugging
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error("ERRO GLOBAL NO SERVIDOR:", err);
+  res.status(500).json({ error: "Erro interno no servidor", details: err.message });
+});
 
-  // Global error handler for debugging
-  app.use((err: any, req: any, res: any, next: any) => {
-    console.error("ERRO GLOBAL NO SERVIDOR:", err);
-    res.status(500).json({ error: "Erro interno no servidor", details: err.message });
-  });
+// Health check for Supabase config
+app.get("/api/config-check", async (req, res) => {
+  console.log("Recebida requisição de config-check");
+  let dbConnection = false;
+  let dbError = null;
 
-  // Health check for Supabase config
-  app.get("/api/config-check", async (req, res) => {
-    console.log("Recebida requisição de config-check");
-    let dbConnection = false;
-    let dbError = null;
-
-    if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
-      try {
-        console.log("Testando conexão com Supabase...");
-        // Try a simple query to check connection
-        const { error } = await supabase.from('alunos').select('id').limit(1);
-        if (!error) {
-          console.log("Conexão com banco de dados OK");
-          dbConnection = true;
-        } else {
-          console.error("Erro na consulta ao banco:", error.message);
-          dbError = error.message;
-        }
-      } catch (err: any) {
-        console.error("Exceção ao testar conexão:", err.message);
-        dbError = err.message;
+  if (supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')) {
+    try {
+      console.log("Testando conexão com Supabase...");
+      // Try a simple query to check connection
+      const { error } = await supabase.from('alunos').select('id').limit(1);
+      if (!error) {
+        console.log("Conexão com banco de dados OK");
+        dbConnection = true;
+      } else {
+        console.error("Erro na consulta ao banco:", error.message);
+        dbError = error.message;
       }
-    } else {
-      console.warn("Supabase não configurado ou usando placeholders");
+    } catch (err: any) {
+      console.error("Exceção ao testar conexão:", err.message);
+      dbError = err.message;
     }
+  } else {
+    console.warn("Supabase não configurado ou usando placeholders");
+  }
 
-    res.json({ 
-      supabaseConfigured: !!(supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')),
-      dbConnection,
-      dbError,
-      nodeEnv: process.env.NODE_ENV
-    });
+  res.json({ 
+    supabaseConfigured: !!(supabaseUrl && supabaseKey && !supabaseUrl.includes('placeholder')),
+    dbConnection,
+    dbError,
+    nodeEnv: process.env.NODE_ENV
   });
+});
+
+async function startServer() {
+  const PORT = 3000;
 
   // Auth Routes (Proxying to Supabase Auth)
   app.post("/api/auth/register", async (req, res) => {
@@ -435,4 +435,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Export for Vercel
+export default app;
+
+if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
+  startServer();
+}
